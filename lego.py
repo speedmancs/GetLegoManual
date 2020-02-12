@@ -28,7 +28,5 @@ if __name__ == "__main__":
         legoManager = LegoManager(None, args.store)
         legoManager.load_products(args.input)
         legoManager.download()
-        pass
-
 
 
