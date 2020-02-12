@@ -4,13 +4,16 @@ import json
 import os
 import time
 from model import Product
+from util import FileUtil
+from config import LegoConfig
 
 
 class LegoManager:
-    def __init__(self, main_page_url):
+    def __init__(self, main_page_url, store_folder):
         self.main_page_url = main_page_url
         self.themes = []
         self.products = []
+        self.store_folder = store_folder
 
     def get_themes(self, output_file):
         response = urllib.request.urlopen(self.main_page_url)
@@ -20,25 +23,26 @@ class LegoManager:
         search_element = soup.find("div", attrs={"class": "product-search"})
         data = search_element.attrs['data-search-themes']
         themes = json.loads(data)
-
-        with open(output_file, mode='w', encoding='utf-8') as file:
-            lines = ["{},{}".format(item['Label'], item['Key']) for item in themes]
-            file.writelines('\n'.join(lines))
+        FileUtil.writelines(output_file, [f"{item['Label']},{item['Key']}" for item in themes])
 
     def load_themes(self, theme_file):
-        with open(theme_file, mode='r', encoding='utf-8') as file:
-            for item in file.readlines():
-                label, key = item.rstrip().split(',')
-                self.themes.append((label, key))
+        self.themes = FileUtil.load_csv(theme_file)
+
+    def load_products(self, products_file):
+        items = FileUtil.load_csv(products_file)
+        for pid, name, tname, tid, year, pdf, image in items:
+            self.products.append(Product(product_id=pid, name=name, theme=tid, store_folder=self.store_folder,
+                                         theme_name=tname, launch_year=year, pdf_locations=[pdf], images=[image]))
+
+    def download(self):
+        for product in self.products:
+            product.download()
 
     def get_products(self, output_file):
         for label, key in self.themes:
-            folder = '.\\store\\{}'.format(label)
-            if not os.path.isdir(folder):
-                os.makedirs(folder)
+            folder = os.path.join(self.store_folder, label)
             self.fetch_products(folder, key)
 
-        print(len(self.products))
         with open(output_file, mode='w', encoding='utf-8') as file:
             for product in self.products:
                 product.write(file)
@@ -50,12 +54,10 @@ class LegoManager:
 
     def fetch_products(self, folder, key):
         index = 0
-        search_url = 'https://www.lego.com//service/biservice/searchbytheme'
-        url_template = '{}?fromIndex={}&onlyAlternatives=false&theme={}'
         finished = False
         total = 0
         while not finished:
-            url = url_template.format(search_url, index, key)
+            url = LegoConfig.url_template.format(LegoConfig.search_url, index, key)
             data = self.fetch_and_parse(url)
             cnt = int(data["count"])
             time.sleep(0.2)
@@ -77,6 +79,6 @@ class LegoManager:
             front_pages = [instruction["frontpageInfo"] for instruction in product["buildingInstructions"]]
             self.products.append(Product(product_id=product["productId"], name=product["productName"],
                                          pdf_locations=pdfs, images=front_pages,
-                                         theme=theme, folder=folder,
+                                         theme=theme, store_folder=folder,
                                          theme_name=product["themeName"],
                                          launch_year=product["launchYear"]))
