@@ -8,6 +8,7 @@ from util import FileUtil
 from config import LegoConfig
 
 
+# The class LegoManager
 class LegoManager:
     def __init__(self, main_page_url, store_folder):
         self.main_page_url = main_page_url
